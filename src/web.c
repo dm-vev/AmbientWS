@@ -47,45 +47,51 @@ int main(int argc, char *argv[]) {
   }
 
   while (1) {
-    // Accept an incoming connection
-    client_address_size = sizeof(client_address);
-    client_fd = accept(server_fd, (struct sockaddr *)&client_address, &client_address_size);
-    if (client_fd < 0) {
-      perror("Error accepting incoming connection");
-      exit(EXIT_FAILURE);
-    }
+  // Accept an incoming connection
+  client_address_size = sizeof(client_address);
+  client_fd = accept(server_fd, (struct sockaddr *)&client_address, &client_address_size);
+  if (client_fd < 0) {
+    perror("Error accepting incoming connection");
+    exit(EXIT_FAILURE);
+  }
 
-    // Read the request from the client
-    int bytes_read = read(client_fd, buffer, BUFFER_SIZE);
-    if (bytes_read < 0) {
-      perror("Error reading request from client");
-      exit(EXIT_FAILURE);
-    }
+  // Read the request from the client
+  int bytes_read = read(client_fd, buffer, BUFFER_SIZE);
+  if (bytes_read < 0) {
+    perror("Error reading request from client");
+    exit(EXIT_FAILURE);
+  }
 
-    char request_method[BUFFER_SIZE];
-    char request_path[BUFFER_SIZE];
-    if (sscanf(buffer, "%s %s", request_method, request_path) != 2) {
+  // Parse the request to get the requested file path
+  char request_method[BUFFER_SIZE];
+  char request_path[BUFFER_SIZE];
+  if (sscanf(buffer, "%s %s", request_method, request_path) != 2) {
     perror("Error parsing request");
     exit(EXIT_FAILURE);
-    }
+  }
 
-    // Get the full file path by concatenating the request path with the base directory
-    char file_path[BUFFER_SIZE];
-    sprintf(file_path, "/path/to/folder%s", request_path);
+  // If the request path is empty, use "index.html" as the default file
+  if (strlen(request_path) == 0) {
+    strcpy(request_path, "/index.html");
+  }
 
-    // Open the file
-    FILE *requested_file = fopen(file_path, "r");
-    if (requested_file == NULL) {
-    perror("Error opening file");
-    exit(EXIT_FAILURE);
-    }
+  // Get the full file path by concatenating the request path with the base directory
+  char file_path[BUFFER_SIZE];
+  sprintf(file_path, "./web%s", request_path);
 
+  // Open the file
+  FILE *requested_file = fopen(file_path, "r");
+  if (requested_file == NULL) {
+    // If the file cannot be opened, send a 404 response to the client
+    const char *response = "HTTP/1.1 404 Not Found\nContent-Type: text/html\n\n<html><body>404 Not Found</body></html>\n";
+    write(client_fd, response, strlen(response));
+  } else {
     // Read the contents of the file into a buffer
     char file_buffer[BUFFER_SIZE];
     size_t file_size = fread(file_buffer, 1, BUFFER_SIZE, requested_file);
     if (file_size == 0) {
-    perror("Error reading file");
-    exit(EXIT_FAILURE);
+      perror("Error reading file");
+      exit(EXIT_FAILURE);
     }
 
     // Send the file contents as the response to the client
@@ -93,10 +99,11 @@ int main(int argc, char *argv[]) {
 
     // Close the file
     fclose(requested_file);
-
-    // Close the client socket
-    close(client_fd);
   }
+
+  // Close the client socket
+  close(client_fd);
+}
 
   return 0;
 }
